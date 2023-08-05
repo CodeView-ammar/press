@@ -35,7 +35,7 @@ class TLSCertificate(Document):
 			frappe.session.data,
 			get_current_team(),
 		)
-		frappe.set_user(team)
+		frappe.set_user(frappe.get_value("Team", team, "user"))
 		frappe.enqueue_doc(
 			self.doctype, self.name, "_obtain_certificate", enqueue_after_commit=True
 		)
@@ -62,6 +62,7 @@ class TLSCertificate(Document):
 			log_error("TLS Certificate Exception", certificate=self.name)
 		self.save()
 		self.trigger_site_domain_callback()
+		self.trigger_self_hosted_server_callback()
 		if self.wildcard:
 			self.trigger_server_tls_setup_callback()
 			self._update_secondary_wildcard_domains()
@@ -83,6 +84,7 @@ class TLSCertificate(Document):
 			proxy = frappe.get_doc("Proxy Server", proxy_name)
 			proxy.setup_wildcard_hosts()
 
+	@frappe.whitelist()
 	def trigger_server_tls_setup_callback(self):
 		server_doctypes = [
 			"Proxy Server",
@@ -107,6 +109,12 @@ class TLSCertificate(Document):
 		domain = frappe.db.get_value("Site Domain", {"tls_certificate": self.name}, "name")
 		if domain:
 			frappe.get_doc("Site Domain", domain).process_tls_certificate_update()
+
+	def trigger_self_hosted_server_callback(self):
+		try:
+			frappe.get_doc("Self Hosted Server", self.name).process_tls_cert_update()
+		except Exception:
+			pass
 
 	def _extract_certificate_details(self):
 		x509 = OpenSSL.crypto.load_certificate(OpenSSL.crypto.FILETYPE_PEM, self.certificate)
@@ -134,7 +142,9 @@ def renew_tls_certificates():
 		)
 		if site:
 			site_status = frappe.db.get_value("Site", site, "status")
-			if site_status == "Active" and check_dns_cname_a(site, certificate.domain):
+			if (
+				site_status == "Active" and check_dns_cname_a(site, certificate.domain)["matched"]
+			):
 				certificate_doc = frappe.get_doc("TLS Certificate", certificate.name)
 				certificate_doc._obtain_certificate()
 				frappe.db.commit()
@@ -247,7 +257,6 @@ class LetsEncrypt(BaseCA):
 			plugin = "--dns-route53"
 		else:
 			plugin = f"--webroot --webroot-path {self.webroot_directory}"
-			# plugin = f"-a dns-multi --dns-multi-credentials={self.directory}/cert.ini" # Used for Getting TLS certs. pip install  dns-multi and need to add creds #TODO
 
 		staging = "--staging" if self.staging else ""
 		force_renewal = "--keep" if frappe.conf.developer_mode else "--force-renewal"

@@ -1,12 +1,11 @@
 <template>
 	<div class="flex h-screen flex-col justify-between bg-gray-50 p-2">
 		<div>
-			<FrappeCloudLogo class="my-6 ml-2 h-4 w-auto" />
-			<div
-				class="mb-4 cursor-pointer rounded-xl border bg-gray-200 px-3 py-3 text-xs hover:border-gray-300"
-				@click="show = true"
-			>
-				Search (Ctrl + k)
+			<div class="flex justify-between">
+				<FrappeCloudLogo class="my-8 ml-2 h-4 w-auto" />
+				<div class="self-center">
+					<Button icon="search" @click="show = true"> </Button>
+				</div>
 			</div>
 			<CommandPalette :show="show" @close="show = false" />
 			<router-link
@@ -55,11 +54,13 @@
 				</div>
 			</template>
 		</Dropdown>
+		<SwitchTeamDialog v-model="showTeamSwitcher" />
 	</div>
 </template>
 
 <script>
 import { FCIcons } from '@/components/icons';
+import SwitchTeamDialog from './SwitchTeamDialog.vue';
 import FrappeCloudLogo from '@/components/FrappeCloudLogo.vue';
 import CommandPalette from '@/components/CommandPalette.vue';
 
@@ -67,19 +68,21 @@ export default {
 	name: 'Sidebar',
 	components: {
 		FrappeCloudLogo,
+		SwitchTeamDialog,
 		CommandPalette
 	},
 	data() {
 		return {
 			show: false,
+			showTeamSwitcher: false,
 			dropdownItems: [
 				{
-					label: 'Docs',
-					icon: 'book-open',
-					handler: () => (window.location.href = '/docs')
+					label: 'Switch Team',
+					icon: 'command',
+					handler: () => (this.showTeamSwitcher = true)
 				},
 				{
-					label: 'Support',
+					label: 'Support & Docs',
 					icon: 'help-circle',
 					handler: () => (window.location.href = '/support')
 				},
@@ -136,6 +139,15 @@ export default {
 					condition: () => this.$account.team?.servers_enabled
 				},
 				{
+					label: 'Spaces',
+					route: '/spaces',
+					highlight: route => {
+						return this.$route.fullPath.indexOf('/spaces') >= 0;
+					},
+					icon: FCIcons.SpacesIcon,
+					condition: () => this.$account.team?.code_servers_enabled
+				},
+				{
 					label: 'Developer',
 					route: '/marketplace/apps',
 					highlight: route => {
@@ -144,14 +156,14 @@ export default {
 					icon: FCIcons.AppsIcon,
 					condition: () => this.$account.team?.is_developer
 				},
-
 				{
 					label: 'Billing',
 					route: '/billing',
 					highlight: route => {
 						return this.$route.fullPath.indexOf('/billing') >= 0;
 					},
-					icon: FCIcons.BillingIcon
+					icon: FCIcons.BillingIcon,
+					condition: () => !this.$account.team?.parent_team
 				},
 				{
 					label: 'Settings',
